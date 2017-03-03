@@ -18,6 +18,25 @@ def debug():
     debug = getConfig().get("app", "debug")
     return debug == "True" or debug == "true" or debug == 1
 
+def getSearchCount():
+    try:
+        count = getConfig().get("app", "search_count")
+        if (count > 0):
+            return count
+        else:
+            return 10
+    except:
+        return 10
+
+def getImageQuality():
+    try:
+        return getConfig().get("app", "image_quality")
+    except:
+        return "large"
+
+def getImageDefault():
+    return getConfig().get("app", "image_default")
+
 def getLogPath():
     return getAndMakePath("log_file")
 

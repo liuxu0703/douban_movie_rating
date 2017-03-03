@@ -4,6 +4,7 @@
 import os
 import commands
 import platform
+import shutil
 import httplib
 import urllib
 import hashlib
@@ -33,6 +34,10 @@ def getDecodedString(string):
 
 # ===================================================================
 
+class GlobalData():
+    run_path = None
+    
+# ===================================================================
 
 class SearchQuest():
 
@@ -40,9 +45,11 @@ class SearchQuest():
         log.d("search keyword: " + getDecodedString(keyword))
         self.origin_search = keyword
         self.search = getUtf8String(keyword)
-        log.d("req: http://api.douban.com/v2/movie/search?q=" + self.search)
+        count = config.getSearchCount()
+        request_string = "/v2/movie/search?count=" + str(count) + "&q=" + self.search
+        log.d("req: http://api.douban.com" + request_string)
         conn = httplib.HTTPConnection("api.douban.com")
-        conn.request("GET", "/v2/movie/search?q=" + self.search)
+        conn.request("GET", request_string)
         res = conn.getresponse()
         ret = res.read()
         if (res.status == 200):
@@ -76,9 +83,8 @@ class SearchQuest():
 
 class MovieCache():
     
-    def __init__(self, cache_key):
-        self.cache_key = getDecodedString(cache_key)
-        self.cache_path = self.getCachePath()
+    def __init__(self, movie_dir):
+        self.cache_path = movie_dir + os.sep + "info.json"
         self.movie = False
         
     def get(self):
@@ -115,8 +121,7 @@ class MovieCache():
             os.remove(self.cache_path)
 
     def getCachePath(self):
-        file_name = hashlib.md5(self.cache_key).hexdigest()
-        return config.getJsonCachePath() + os.sep + file_name
+        return self.cache_path
     
 
 # ===================================================================
@@ -200,6 +205,59 @@ python "$program_path" "$current_dir"
     def getLinuxRelativePath():
         cmd = "d=$(df . | sed -n '2p' | awk '{print $NF}'); pwd | awk -F \"$d\" '{print $2}'"
         return commands.getoutput(cmd)
+    
+
+# ===================================================================
+
+
+class ImageCache():
+
+    @staticmethod
+    def getImagePath(image_url, selected = False):
+        file_name = hashlib.md5(image_url).hexdigest() + ".jpg"
+        if (GlobalData.run_path):
+            image_sel_path = GlobalData.run_path + os.sep + file_name
+            if (os.path.exists(image_sel_path)):
+                return image_sel_path
+        image_tmp_path = config.getImageCachePath() + os.sep + file_name
+        if (os.path.exists(image_tmp_path)):
+            if (selected):
+                ImageCache.update(image_url, selected)
+            return image_tmp_path
+
+        if (selected):
+            image_path = image_sel_path
+        else:
+            image_path = image_tmp_path
+        image_path = ImageCache.downloadImage(image_url, image_path)
+        if (image_path):
+            log.d("getImagePath from net: " + image_url)
+            return image_path
+        else:
+            log.d("getImagePath fail: " + image_url)
+        
+    @staticmethod
+    def update(image_url, selected):
+        if (GlobalData.run_path == None):
+            return
+        file_name = hashlib.md5(image_url).hexdigest() + ".jpg"
+        if (selected):
+            image_tmp_path = config.getImageCachePath() + os.sep + file_name
+            if (os.path.exists(image_tmp_path)):
+                image_path = GlobalData.run_path + os.sep + file_name
+                shutil.copy(image_tmp_path, image_path)
+        else:
+            image_path = GlobalData.run_path + os.sep + file_name
+            if (os.path.exists(image_path)):
+                os.remove(image_path)
+        
+    @staticmethod
+    def downloadImage(image_url, image_path):
+        byte = urllib.urlopen(image_url).read()
+        write_file = open(image_path, 'wb')
+        write_file.write(byte)
+        write_file.close()
+        return image_path
 
 
 # ===================================================================
@@ -222,7 +280,11 @@ class MovieSummary():
     
     def getImage(self):
         if (self.data["images"]):
-            return self.data["images"]["large"]
+            if (self.selected):
+                return self.data["images"]["large"]
+            elif (config.getImageQuality() in self.data["images"]):
+                return self.data["images"][config.getImageQuality()]
+        return config.getImageDefault()
 
     def getRating(self):
         return u"豆瓣评分: " + str(self.data["rating"]["average"]) +\
@@ -232,6 +294,13 @@ class MovieSummary():
         ret = u"主要演员:"
         for c in self.data["casts"]:
             ret = ret + " " + c["name"]
+        return ret
+    
+    def getDirector(self):
+        ret = u"影片导演:"
+        if self.data["directors"]:
+            for d in self.data["directors"]:
+                ret = ret + " " + d["name"]
         return ret
 
     def getYear(self):

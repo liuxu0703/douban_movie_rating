@@ -4,7 +4,6 @@
 import os
 import shutil
 import urllib
-import threading
 import platform
 import Tkinter
 import tkFileDialog

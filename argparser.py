@@ -4,9 +4,9 @@
 import os
 import sys
 import platform
+import commands
 import codecs
 import urllib
-import string
 import log
 import config
 
@@ -86,7 +86,7 @@ class PathParser():
                 if (word):
                     word = word.strip('\n')
                     self.filter_list.append(word)
-        except Exception, e:
+        except:
             log.logger.exception("load filter words fail")
 
     def filter(self, search_string):

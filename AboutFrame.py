@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # author: liuxu
 
+import platform
 from Tkinter import Label
 from Tkinter import LabelFrame
 import Tkinter
@@ -32,10 +33,21 @@ class Introduction():
     def __init__(self):
         self.root = Tkinter.Tk()
         self.root.title(u"说明")
-        TextLabelFrame(self.root, "Read Me", config.getReadMeContent())
+        TextLabelFrame(self.root, "Read Me", self.getContent())
         center(self.root)
         self.root.mainloop()
 
+    def getContent(self):
+        content = config.getReadMeContent()
+        system = platform.system()
+        if (system == "Windows"):
+            return content
+        elif (system == "Darwin"):
+            return content.replace("\r", "")
+        elif (system == "Linux"):
+            return content.replace("\r", "")
+        else:
+            return content
 
 # ===================================================================
 

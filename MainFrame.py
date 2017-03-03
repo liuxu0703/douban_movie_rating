@@ -28,8 +28,8 @@ import DeployFrame
 
 class ImageView(Label):
 
-    def __init__(self, master, url, w, h):
-        path = self.getImagePath(url)
+    def __init__(self, master, url, w, h, selected = False):
+        path = data.ImageCache.getImagePath(url, selected)
         image_tk = ImageTk.PhotoImage(Image.open(path).resize((w, h), Image.ANTIALIAS))
         Label.__init__(self, master, image = image_tk)
         self.image = image_tk # keep a reference!
@@ -41,37 +41,12 @@ class ImageView(Label):
 
     def display(self, image_url):
         self.image_url = image_url
-        self.image_path = self.getImagePath(image_url)
+        self.image_path = data.ImageCache.getImagePath(image_url)
         image_tk = ImageTk.PhotoImage(
                 Image.open(self.image_path).resize((self.image_width, self.image_height),
                 Image.ANTIALIAS))
         self.image = image_tk # keep a reference!
         return self
-        
-    # ========================================================
-
-    def getImagePath(self, image_url):
-        image_path = self.getImageCachePath(image_url);
-        if (os.path.exists(image_path)):
-            log.d("getImagePath from cache: " + image_url)
-            return image_path
-        image_path = self.downloadImage(image_url, image_path)
-        if (image_path):
-            log.d("getImagePath from net: " + image_url)
-            return image_path
-        else:
-            log.d("getImagePath fail: " + image_url)
-        
-    def getImageCachePath(self, image_url):
-        file_name = hashlib.md5(image_url).hexdigest() + ".jpg"
-        return config.getImageCachePath() + os.sep + file_name
-        
-    def downloadImage(self, image_url, image_path):
-        byte = urllib.urlopen(image_url).read()
-        write_file = open(image_path, 'wb')
-        write_file.write(byte)
-        write_file.close()
-        return image_path
 
 
 # ===================================================================
@@ -162,12 +137,14 @@ class InfoFrame(LabelFrame):
         self.image_view = ImageView(self,
             self.movie.getImage(),
             config.getWindowSize("movie_poster_width"),
-            config.getWindowSize("movie_poster_height"))
+            config.getWindowSize("movie_poster_height"),
+            movie.isSelected())
         self.image_view.pack(side = Tkinter.LEFT, ipadx = 6, ipady = 6)
         self.info_view = InfoTextView(self)\
                 .setTitle(self.movie.getTitle())\
                 .addContent(self.movie.getOriginalTitle())\
                 .addContent(self.movie.getRating())\
+                .addContent(self.movie.getDirector())\
                 .addContent(self.movie.getGenres())\
                 .addContent(self.movie.getYear())\
                 .setWebUrl(self.movie.getWebUrl())
@@ -309,16 +286,18 @@ class MainMenu(Menu):
 
 class Main():
     
-    def __init__(self, cache_key, search_string):
-        log.d("MainFrame, start up. key=" + cache_key + ", search=" + search_string)
-        self.movie_cache = data.MovieCache(cache_key)
-        self.movie_list = self.movie_cache.getList()
-        self.cache_key = cache_key
+    def __init__(self, search_string, movie_cache = None):
+        log.d("MainFrame, start up for " + search_string)
+        self.movie_cache = movie_cache
+        if (movie_cache):
+            self.movie_list = self.movie_cache.getList()
+        else:
+            self.movie_list = []
         self.origin_search_string = search_string
         self.search_string = search_string
         self.provider = data.SearchQuest()
         self.root = Tkinter.Tk()
-        self.root.title(u"电影信息摘要")
+        self.root.title(u"影片摘要")
         self.root.config(menu = MainMenu(self.root))
         #self.refreshView(self.movie_list)
         if (len(self.movie_list) == 0 and self.search_string):
@@ -329,7 +308,7 @@ class Main():
         self.root.mainloop()
 
     def refreshView(self, movie_list):
-        if (not self.cache_key and not self.search_string):
+        if (self.movie_cache == None and not self.search_string):
             message = u'''
 首次加载?
 点击菜单中的 部署, 将程序部署到各电影目录.
@@ -363,7 +342,9 @@ class Main():
             if (info_frame.movie.getMovieId() != movie.getMovieId()):
                 info_frame.setSelected(False)
             info_frame.refreshSelected()
-        self.movie_cache.update(movie)
+        if (self.movie_cache):
+            self.movie_cache.update(movie)
+            data.ImageCache.update(movie.getImage(), movie.isSelected())
         if (not movie.isSelected() and len(self.movie_list) <= 1):
             self.movie_list = self.provider.getMovieListByKeyword(self.origin_search_string)
             self.refreshView(self.movie_list)
@@ -389,8 +370,7 @@ class Main():
 
 if __name__ == '__main__':
     search_string = u"功夫熊猫"
-    cache_key = search_string
-
-    #Main(cache_key, search_string)
-    Main("", "")
+    movie_cache = data.MovieCache(os.curdir)
+    Main(search_string, movie_cache)
+    #Main("", "")
         
